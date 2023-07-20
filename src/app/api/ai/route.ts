@@ -43,7 +43,7 @@ export const POST = async (req: NextRequest, res: NextResponse) => {
               duration: {
                 type: 'number',
                 description: 'if the user defines a length for the music or audio, return the number only (in seconds)',
-              }
+              },
             },
           },
         },
@@ -64,48 +64,42 @@ export const POST = async (req: NextRequest, res: NextResponse) => {
     };
 
     const response = await fetch(openai_base_url, {
-        method: 'POST',
-        headers: openaiHeaders,
-        body: JSON.stringify(requestData)
+      method: 'POST',
+      headers: openaiHeaders,
+      body: JSON.stringify(requestData),
     });
 
     const { error, choices } = await response.json();
     if (error) {
-        console.error(`🚨 Error: ${JSON.stringify(error, null, 2)}`);
-        return NextResponse.json({ error });
+      console.error(`🚨 Error: ${JSON.stringify(error, null, 2)}`);
+      return NextResponse.json({ error });
     }
     console.log(`choices: ${JSON.stringify(choices, null, 2)}`);
-    let choice = choices[0];
 
-    const { function_call } = choice.message;
+    const { function_call, content } = choices[0].message;
     console.log(`function_call: ${function_call}`);
 
-    if (function_call) {
-        const args = JSON.parse(function_call.arguments);
-
-        switch (function_call.name) {
-            case 'createAudio':
-                await createAudio(args);
-                break;
-            case 'createImage':
-                await createImage(args);
-                break;
-            default:
-                return NextResponse.json({
-                    data: choice.message.content,
-                    type: 'text'
-                });
-                break;
-        }
-
-    } else {
-        return NextResponse.json({ 
-            data: choice.message.content,
-            type: 'text'
-         });
+    // if no function call, return the response as is
+    if (!function_call) {
+      return NextResponse.json({
+        data: content,
+        type: 'text',
+      });
     }
 
-
+    // otherwise, parse the function call and call the appropriate function
+    const args = JSON.parse(function_call.arguments);
+    switch (function_call.name) {
+      case 'createAudio':
+        return createAudio(args);
+      case 'createImage':
+        return createImage(args);
+      default:
+        return NextResponse.json({
+          data: content,
+          type: 'text',
+        });
+    }
   } catch (error) {
     console.error(`🚨 Error: ${error}`);
     return NextResponse.json({ error });
@@ -115,34 +109,28 @@ export const POST = async (req: NextRequest, res: NextResponse) => {
 const createAudio = async (args: any) => {
   console.log(`🎧 creating music`);
   console.log(`args: ${JSON.stringify(args, null, 2)}`);
-    const output = await replicate.run(
-        audioModel,
-        {
-            input: {
-                model_version: 'melody',
-                ...args
-            }
-        }
-    );
-    return NextResponse.json({
-        data: output,
-        type: 'audio'
-    });
-}
+  const output = await replicate.run(audioModel, {
+    input: {
+      model_version: 'melody',
+      ...args,
+    },
+  });
+  return NextResponse.json({
+    data: output,
+    type: 'audio',
+  });
+};
 
 const createImage = async (args: any) => {
   console.log(`📸 creating image`);
   console.log(`args: ${JSON.stringify(args, null, 2)}`);
-    const output = await replicate.run(
-        imageModel,
-        {
-            input: {
-                ...args
-            }
-        }
-    );
-    return NextResponse.json({
-        data: output,
-        type: 'image'
-    });
-}
+  const output = await replicate.run(imageModel, {
+    input: {
+      ...args,
+    },
+  });
+  return NextResponse.json({
+    data: output,
+    type: 'image',
+  });
+};
